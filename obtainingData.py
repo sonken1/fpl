@@ -2,6 +2,7 @@ import requests
 import json
 import time
 import csv
+import pandas as pd
 
 
 class dataFetcher:
@@ -75,6 +76,23 @@ class dataFetcher:
                 json.dump(data, out)
         return data
 
+    def create_team_data(self, base_data):
+        row_names = ['short_name', 'code', 'pulse_id', 'strength_overall_home', 'strength_overall_away',
+                     'strength_attack_home', 'strength_attack_away', 'strength_defence_home', 'strength_defence_away']
+        temp_df = pd.DataFrame(base_data['teams'])
+        team_df = temp_df.T
+
+        return team_df
+
+    def create_fixture_data(self, fixture_data):
+        temp_df = pd.DataFrame(fixture_data)
+        fixture_df = temp_df.T
+
+        # For future adding fixtures properly (here we would like all data from away team (team_a) with id 1
+        # (i.e. all arsenal away games)
+        # arsenal_away = temp_df.loc[temp_df['team_a'] == 1]
+        return fixture_df
+
 
 
 def parse_data(path, url, name_dump, headers_of_interest, types=''):
@@ -128,18 +146,28 @@ if __name__ == '__main__':
     testDataFetcher = dataFetcher()
 
     # Testing Manager Data
-    eliasData = testDataFetcher.get_manager_data(2481730)
-    print("Elias Säsongsdata: ")
-    for key in eliasData:
-        print(key, ": ", eliasData[key])
+    eliasID = 2481730
+    eliasData = testDataFetcher.get_manager_data(eliasID)
 
     # Testing Player Data
-    print("\nLucas Moura: ")
     lucasMoura_id = 362
     lucasMoura_data = testDataFetcher.get_player_data(lucasMoura_id)
-    for key in lucasMoura_data:
-        print(key, ": ", lucasMoura_data[key])
 
+    # Testing GW Data
+    gw_id = 20
+    gw20_data = testDataFetcher.get_gw_data(gw_id)
+
+    # Testing Fixture Data
+    fixture_data = testDataFetcher.get_fixture_data()
+
+    # Testing Base Data
+    base_data = testDataFetcher.get_base_data()
+
+    # Testing Team Data
+    team_data = testDataFetcher.create_team_data(base_data)
+
+    # Testing Fixture Data
+    fixture_data = testDataFetcher.create_fixture_data(fixture_data)
 
 
     # team_id = "3022773"
