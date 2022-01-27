@@ -93,6 +93,13 @@ class dataFetcher:
         # arsenal_away = temp_df.loc[temp_df['team_a'] == 1]
         return fixture_df
 
+    def create_players_data(self, base_data):
+        # Columns are player id
+        players_in_id_order = sorted(base_data['elements'], key=lambda d: d['id'])
+        temp_df = pd.DataFrame(players_in_id_order)
+        players_df = temp_df.T
+        return players_df
+
 
 
 def parse_data(path, url, name_dump, headers_of_interest, types=''):
@@ -168,6 +175,9 @@ if __name__ == '__main__':
 
     # Testing Fixture Data
     fixture_data = testDataFetcher.create_fixture_data(fixture_data)
+
+    # Testing Players Data
+    players_data = testDataFetcher.create_players_data(base_data)
 
 
     # team_id = "3022773"
