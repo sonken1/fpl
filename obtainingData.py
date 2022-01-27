@@ -3,6 +3,7 @@ import json
 import time
 import csv
 import pandas as pd
+import numpy as np
 
 
 class dataFetcher:
@@ -38,14 +39,19 @@ class dataFetcher:
         self.manager_url = "https://fantasy.premierleague.com/api/entry/{}/"    # Need to add .format(manager_id)
         self.managerHistory_url = "https://fantasy.premierleague.com/api/entry/{}/history/"  # Need to add .format(manager_id)
 
-    def get_player_data(self, player_id):
-        return self.get_data(self.player_url.format(player_id))
+        # Get initial data
+        self.base_data = self.get_base_data()
+        self.fixture_data = self.get_fixture_data()
+        self.team_data = self.create_team_data()
 
     def get_base_data(self):
         return self.get_data(self.general_url)
 
     def get_fixture_data(self):
         return self.get_data(self.fixture_url)
+
+    def get_player_data(self, player_id):
+        return self.get_data(self.player_url.format(player_id))
 
     def get_gw_data(self, gw_id):
         return self.get_data(self.gw_url.format(gw_id))
@@ -76,16 +82,34 @@ class dataFetcher:
                 json.dump(data, out)
         return data
 
-    def create_team_data(self, base_data):
+    def create_team_data(self):
         row_names = ['short_name', 'code', 'pulse_id', 'strength_overall_home', 'strength_overall_away',
                      'strength_attack_home', 'strength_attack_away', 'strength_defence_home', 'strength_defence_away']
-        temp_df = pd.DataFrame(base_data['teams'])
+        teams_in_id_order = sorted(self.base_data['teams'], key=lambda d: d['id'])
+        id_col_names = []
+        for team in teams_in_id_order:
+            id_col_names.append(team['id'])
+        temp_df = pd.DataFrame(teams_in_id_order)
         team_df = temp_df.T
+        team_df.columns = id_col_names
 
         return team_df
 
-    def create_fixture_data(self, fixture_data):
-        temp_df = pd.DataFrame(fixture_data)
+    def create_advanced_team_data(self):
+
+        # This is bas atm, but idea is to concat all away & home fixtures and add to team
+        for team_id in self.team_data:
+            temp_a = np.where((self.fixture_data.loc['team_a'] == team_id).to_list())[0]
+            temp_h = np.where((self.fixture_data.loc['team_h'] == team_id).to_list())[0]
+            fixture_data[np.where(temp_lst)[0]]
+
+
+
+        self.team_data
+
+    def create_fixture_data(self):
+
+        temp_df = pd.DataFrame(self.fixture_data)
         fixture_df = temp_df.T
 
         # For future adding fixtures properly (here we would like all data from away team (team_a) with id 1
@@ -93,60 +117,16 @@ class dataFetcher:
         # arsenal_away = temp_df.loc[temp_df['team_a'] == 1]
         return fixture_df
 
-    def create_players_data(self, base_data):
+    def create_players_data(self):
         # Columns are player id
-        players_in_id_order = sorted(base_data['elements'], key=lambda d: d['id'])
+        players_in_id_order = sorted(self.base_data['elements'], key=lambda d: d['id'])
+        id_col_names = []
+        for player in players_in_id_order:
+            id_col_names.append(player['id'])
         temp_df = pd.DataFrame(players_in_id_order)
         players_df = temp_df.T
+        players_df.columns = id_col_names # Name the columns by sorted id rather than iterable
         return players_df
-
-
-
-def parse_data(path, url, name_dump, headers_of_interest, types=''):
-    data = get_data(path, url, name_dump)
-    headers, raw_path = build_statistic_header(data, path + 'raw_' + name_dump + '.csv', types)
-    # int_headers = ['first_name', 'second_name', 'id', 'web_name', 'now_cost', 'cost_change_start', 'element_type',
-    #                'selected_by_percent', 'team', 'team_code', 'total_points', 'minutes', 'goals_scored', 'assists',
-    #                'clean_sheets', 'goals_conceded', 'yellow_cards', 'red_cards', 'saves', 'bonus', 'bps']
-    clean_path = clean_data(raw_path, path + 'cleaned_' + name_dump + '.csv', headers_of_interest)
-    return headers, raw_path, clean_path
-
-
-def build_statistic_header(statistics_dict_full, path, entry_type):
-    """
-    Right now, the passed stats_dict is assumed to be player data. To make this more generic/general, remove "elements"
-    and pass the type (elements/events/teams...) as an argument to the function and this could clean all data.
-    """
-    # Empty variable to fill
-    statistics_dict = statistics_dict_full[entry_type][0]
-    headers = []
-
-    # Save all keys into one massive header
-    for key, val in statistics_dict.items():
-        headers += [key]
-
-    # Save all headers into a .csv file
-    with open(path, 'w+', encoding='utf8', newline='') as file:
-        w = csv.DictWriter(file, sorted(headers))
-        w.writeheader()
-        for player in statistics_dict_full[entry_type]:
-            w.writerow({k: str(v).encode('utf-8').decode('utf-8') for k, v in player.items()})
-    return headers, path
-
-
-def clean_data(path, clean_path, headers_of_interest):
-    """
-    This cleaner should be able to be used as a generic cleaner, not only for player data but also gw etc.
-    """
-    raw_file = open(path, 'r+', encoding='utf-8')
-    r = csv.DictReader(raw_file)
-
-    with open(clean_path, 'w+', encoding='utf8', newline='') as file:
-        w = csv.DictWriter(file, headers_of_interest, extrasaction='ignore')
-        w.writeheader()
-        for line in r:
-            w.writerow(line)
-    return clean_path
 
 
 if __name__ == '__main__':
@@ -165,19 +145,19 @@ if __name__ == '__main__':
     gw20_data = testDataFetcher.get_gw_data(gw_id)
 
     # Testing Fixture Data
-    fixture_data = testDataFetcher.get_fixture_data()
+    basic_fixture_data = testDataFetcher.get_fixture_data()
 
     # Testing Base Data
     base_data = testDataFetcher.get_base_data()
 
     # Testing Team Data
-    team_data = testDataFetcher.create_team_data(base_data)
+    team_data = testDataFetcher.create_team_data()
 
     # Testing Fixture Data
-    fixture_data = testDataFetcher.create_fixture_data(fixture_data)
+    fixture_data = testDataFetcher.create_fixture_data()
 
     # Testing Players Data
-    players_data = testDataFetcher.create_players_data(base_data)
+    players_data = testDataFetcher.create_players_data()
 
 
     # team_id = "3022773"
