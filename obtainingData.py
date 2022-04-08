@@ -4,6 +4,7 @@ import time
 import csv
 import pandas as pd
 import numpy as np
+from scipy.stats import poisson
 
 
 class dataFetcher:
@@ -43,6 +44,15 @@ class dataFetcher:
         self.base_data = self.get_base_data()
         self.fixture_data = self.get_fixture_data()
         self.team_data = self.create_team_data()
+
+        # Create constants to use in calculations
+        self.home_goals_scored_average = 0
+        self.home_goals_conceded_average = 0
+        self.away_goals_scored_average = 0
+        self.away_goals_conceded_average = 0
+
+        # Update team data with interesting columns
+        self.create_advanced_team_data()
 
     def get_base_data(self):
         return self.get_data(self.general_url)
@@ -98,14 +108,127 @@ class dataFetcher:
     def create_advanced_team_data(self):
 
         # This is bas atm, but idea is to concat all away & home fixtures and add to team
+        fixture_data = self.create_fixture_data()
+        self.team_data.loc['home_goals'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['home_goals_scored'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['home_goals_conceded'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['away_goals_scored'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['away_goals_conceded'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['goals_scored'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['goals_conceded'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['home_goals_scored_mean'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['away_goals_scored_mean'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['home_goals_conceded_mean'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['away_goals_conceded_mean'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['home_failed_to_score'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['away_failed_to_score'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['home_clean_sheets'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['away_clean_sheets'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['home_games'] = 0 * len(self.team_data.columns)
+        self.team_data.loc['away_games'] = 0 * len(self.team_data.columns)
+
+        # Create Basis with loop
         for team_id in self.team_data:
-            temp_a = np.where((self.fixture_data.loc['team_a'] == team_id).to_list())[0]
-            temp_h = np.where((self.fixture_data.loc['team_h'] == team_id).to_list())[0]
-            fixture_data[np.where(temp_lst)[0]]
+            a_idx = np.where((fixture_data.loc['team_a'] == team_id).to_list())[0]
+            h_idx = np.where((fixture_data.loc['team_h'] == team_id).to_list())[0]
+            a_games = fixture_data[a_idx]
+            a_filter = a_games.loc['finished'] == True
+            a_games = a_games[a_filter[a_filter].index]
+            h_games = fixture_data[h_idx]
+            h_filter = h_games.loc['finished'] == True
+            h_games = h_games[h_filter[h_filter].index]
 
+            # Away
+            away_games = len(a_filter[a_filter])
+            away_goalsConceded = a_games.loc['team_h_score']
+            away_goalsScored = a_games.loc['team_a_score']
+            away_goalsConceded_Mean = away_goalsConceded.mean()
+            away_goalsScored_Mean = away_goalsScored.mean()
+            away_failedToScore = len(away_goalsScored[away_goalsScored == 0])
+            away_cleanSheets = len(away_goalsConceded[away_goalsConceded == 0])
 
+            # Home
+            home_games = len(h_filter[h_filter])
+            home_goalsConceded = h_games.loc['team_a_score']
+            home_goalsScored = h_games.loc['team_h_score']
+            home_goalsConceded_Mean = home_goalsConceded.mean()
+            home_goalsScored_Mean = home_goalsScored.mean()
+            home_failedToScore = len(home_goalsScored[home_goalsScored == 0])
+            home_cleanSheets = len(home_goalsConceded[home_goalsConceded == 0])
 
-        self.team_data
+            # Stats | Win/Lose/Draw
+            away_goalDiff = away_goalsScored - away_goalsConceded
+            away_wins = len(away_goalDiff[away_goalDiff > 0])
+            away_loss = len(away_goalDiff[away_goalDiff < 0])
+            away_draws = len(away_goalDiff[away_goalDiff == 0])
+
+            home_goalDiff = home_goalsScored - home_goalsConceded
+            home_wins = len(home_goalDiff[home_goalDiff > 0])
+            home_loss = len(home_goalDiff[home_goalDiff < 0])
+            home_draws = len(home_goalDiff[home_goalDiff == 0])
+
+            wins = home_wins + away_wins
+            draws = home_draws + away_draws
+            loss = home_loss + away_loss
+            points = 3*wins + 1*draws
+
+            self.team_data[team_id]['home_goals_scored'] = home_goalsScored.sum()
+            self.team_data[team_id]['home_goals_conceded'] = home_goalsConceded.sum()
+            self.team_data[team_id]['away_goals_scored'] = away_goalsScored.sum()
+            self.team_data[team_id]['away_goals_conceded'] = away_goalsConceded.sum()
+            self.team_data[team_id]['goals_scored'] = home_goalsScored.sum() + away_goalsScored.sum()
+            self.team_data[team_id]['goals_conceded'] = home_goalsConceded.sum() + away_goalsConceded.sum()
+            self.team_data[team_id]['home_goals_scored_mean'] = home_goalsScored_Mean
+            self.team_data[team_id]['away_goals_scored_mean'] = away_goalsScored_Mean
+            self.team_data[team_id]['home_goals_conceded_mean'] = home_goalsConceded_Mean
+            self.team_data[team_id]['away_goals_conceded_mean'] = away_goalsConceded_Mean
+            self.team_data[team_id]['home_failed_to_score'] = home_failedToScore
+            self.team_data[team_id]['away_failed_to_score'] = away_failedToScore
+            self.team_data[team_id]['home_clean_sheets'] = home_cleanSheets
+            self.team_data[team_id]['away_clean_sheets'] = away_cleanSheets
+            self.team_data[team_id]['home_games'] = home_games
+            self.team_data[team_id]['away_games'] = away_games
+
+            self.team_data[team_id]['win'] = wins
+            self.team_data[team_id]['loss'] = loss
+            self.team_data[team_id]['draw'] = draws
+            self.team_data[team_id]['points'] = points
+
+        self.home_goals_scored_average = np.mean(self.team_data.loc['home_goals_scored']/self.team_data.loc['home_games'])
+        self.home_goals_conceded_average = np.mean(self.team_data.loc['home_goals_conceded']/self.team_data.loc['home_games'])
+        self.away_goals_scored_average = np.mean(self.team_data.loc['away_goals_scored']/self.team_data.loc['away_games'])
+        self.away_goals_conceded_average = np.mean(self.team_data.loc['away_goals_conceded']/self.team_data.loc['away_games'])
+
+        for team_id in self.team_data:
+            self.team_data[team_id]['strength_attack_home'] = self.team_data[team_id]['home_goals_scored_mean']/self.home_goals_scored_average
+            self.team_data[team_id]['strength_attack_away'] = self.team_data[team_id]['away_goals_scored_mean']/self.away_goals_scored_average
+            self.team_data[team_id]['strength_defence_home'] = self.team_data[team_id]['home_goals_conceded_mean']/self.home_goals_conceded_average
+            self.team_data[team_id]['strength_defence_away'] = self.team_data[team_id]['away_goals_conceded_mean']/self.away_goals_conceded_average
+
+        # Uppdatera den här sen:
+        # self.team_data[team_id].egenskap = uträknad egenskap
+        # self.team_data[team_id].loc['scored'] = 0*len(test.columns) för att skapa dummyn
+
+    def calculate_score_distribution(self, homeId, awayId):
+        home_score_poss = self.team_data[homeId]['strength_attack_home'] * self.team_data[awayId]['strength_defence_away'] * self.home_goals_scored_average
+        away_score_poss = self.team_data[homeId]['strength_attack_away'] * self.team_data[awayId]['strength_defence_home'] * self.away_goals_scored_average
+
+        # Poisson distribution https: // en.wikipedia.org / wiki / Poisson_distribution
+        k = 6
+        home_probabilities = np.zeros((k, 1))
+        away_probabilities = np.zeros((k, 1))
+        combined_probabilities = np.zeros((k, k))
+        for i in range(0, k):
+            home_probabilities[i] = (np.exp(-home_score_poss) * home_score_poss ** i) / np.math.factorial(i)
+            away_probabilities[i] = (np.exp(-away_score_poss) * away_score_poss ** i) / np.math.factorial(i)
+
+        for i, hp in enumerate(home_probabilities):
+            for j, ap in enumerate(away_probabilities):
+                mu = hp * ap
+                combined_probabilities[i, j] = (np.exp(-home_score_poss) * home_score_poss ** i) / np.math.factorial(i)
+        matrix = np.outer(home_probabilities, away_probabilities)
+
+        return matrix
 
     def create_fixture_data(self):
 
@@ -158,6 +281,10 @@ if __name__ == '__main__':
 
     # Testing Players Data
     players_data = testDataFetcher.create_players_data()
+
+    # Updated Team Data
+    testDataFetcher.create_advanced_team_data()
+    team_advanced_data = testDataFetcher.team_data
 
 
     # team_id = "3022773"
